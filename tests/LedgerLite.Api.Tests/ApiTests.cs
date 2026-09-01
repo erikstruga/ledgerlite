@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using LedgerLite.Api.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Xunit;
 
 namespace LedgerLite.Api.Tests;
 
@@ -30,4 +31,3 @@ public class ApiTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.NotNull(report); Assert.Equal(4905m, report.NetIncome);
     }
 }
-

@@ -1,7 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace LedgerLite.Api.Models;
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum InvoiceStatus { Draft, Sent, Paid, Overdue }
 
 public class Invoice

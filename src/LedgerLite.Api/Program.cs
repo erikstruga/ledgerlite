@@ -35,8 +35,13 @@ app.MapPost("/api/journal-entries", async (JournalEntry entry, AppDbContext db) 
 
 app.MapGet("/api/reports/profit-and-loss", async (DateOnly? from, DateOnly? to, AppDbContext db) => {
     var start = from ?? new DateOnly(DateTime.Today.Year, 1, 1); var end = to ?? DateOnly.FromDateTime(DateTime.Today);
-    var rows = await db.JournalLines.Where(x => x.JournalEntry!.EntryDate >= start && x.JournalEntry.EntryDate <= end && (x.Account!.Type == "Revenue" || x.Account.Type == "Expense"))
-        .GroupBy(x => new { x.Account!.Name, x.Account.Type }).Select(g => new { g.Key.Name, g.Key.Type, Amount = g.Sum(x => x.Account!.Type == "Revenue" ? x.Credit - x.Debit : x.Debit - x.Credit) }).ToListAsync();
+    var reportLines = await db.JournalLines
+        .Where(x => x.JournalEntry!.EntryDate >= start && x.JournalEntry.EntryDate <= end && (x.Account!.Type == "Revenue" || x.Account.Type == "Expense"))
+        .Select(x => new { x.Account!.Name, x.Account.Type, x.Debit, x.Credit })
+        .ToListAsync();
+    var rows = reportLines.GroupBy(x => new { x.Name, x.Type })
+        .Select(g => new { g.Key.Name, g.Key.Type, Amount = g.Sum(x => x.Type == "Revenue" ? x.Credit - x.Debit : x.Debit - x.Credit) })
+        .ToList();
     var revenue = rows.Where(x => x.Type == "Revenue").Select(x => new ProfitAndLossLine(x.Name, x.Amount)).ToList();
     var expenses = rows.Where(x => x.Type == "Expense").Select(x => new ProfitAndLossLine(x.Name, x.Amount)).ToList();
     var totalRevenue = revenue.Sum(x => x.Amount); var totalExpenses = expenses.Sum(x => x.Amount);
@@ -46,4 +51,3 @@ app.MapGet("/api/reports/profit-and-loss", async (DateOnly? from, DateOnly? to, 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.Run();
 public partial class Program { }
-

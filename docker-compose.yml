@@ -1,0 +1,13 @@
+services:
+  api:
+    build: ./src/LedgerLite.Api
+    volumes: [ledger-data:/app/data]
+    environment:
+      ConnectionStrings__Ledger: Data Source=/app/data/ledgerlite.db
+  web:
+    build: ./src/LedgerLite.Web
+    ports: ["3000:80"]
+    depends_on: [api]
+volumes:
+  ledger-data:
+

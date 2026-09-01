@@ -1,0 +1,36 @@
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowDownRight, ArrowUpRight, BookOpen, FileText, LayoutDashboard, Plus, ReceiptText, Search, Sparkles, TrendingUp } from 'lucide-react';
+
+type Invoice = { id:number; customer:string; number:string; issueDate:string; dueDate:string; amount:number; status:'Draft'|'Sent'|'Paid'|'Overdue' };
+type Pnl = { revenue:{account:string;amount:number}[]; expenses:{account:string;amount:number}[]; totalRevenue:number; totalExpenses:number; netIncome:number };
+const fallbackInvoices: Invoice[] = [
+  {id:1,customer:'Northstar Studio',number:'INV-1004',issueDate:'2026-08-03',dueDate:'2026-09-02',amount:4200,status:'Sent'},
+  {id:2,customer:'Maple & Co.',number:'INV-1003',issueDate:'2026-07-12',dueDate:'2026-08-11',amount:2850,status:'Overdue'},
+  {id:3,customer:'Aster Labs',number:'INV-1002',issueDate:'2026-07-01',dueDate:'2026-07-31',amount:5600,status:'Paid'}
+];
+const fallbackPnl:Pnl = {revenue:[{account:'Consulting revenue',amount:5600}],expenses:[{account:'Software expense',amount:480},{account:'Office expense',amount:215}],totalRevenue:5600,totalExpenses:695,netIncome:4905};
+const money = (n:number) => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(n);
+
+export function App(){
+  const [view,setView]=useState<'Overview'|'Invoices'|'Journal'|'P&L'>('Overview');
+  const [invoices,setInvoices]=useState<Invoice[]>(fallbackInvoices); const [pnl,setPnl]=useState<Pnl>(fallbackPnl); const [modal,setModal]=useState(false);
+  useEffect(()=>{ Promise.all([fetch('/api/invoices').then(r=>r.ok?r.json():fallbackInvoices),fetch('/api/reports/profit-and-loss?from=2026-01-01&to=2026-12-31').then(r=>r.ok?r.json():fallbackPnl)]).then(([i,p])=>{setInvoices(i);setPnl(p)}).catch(()=>{}); },[]);
+  const outstanding=useMemo(()=>invoices.filter(i=>i.status!=='Paid').reduce((s,i)=>s+i.amount,0),[invoices]);
+  const nav = [{name:'Overview',icon:LayoutDashboard},{name:'Invoices',icon:ReceiptText},{name:'Journal',icon:BookOpen},{name:'P&L',icon:TrendingUp}] as const;
+  return <div className="shell">
+    <aside><div className="brand"><span>LL</span><div>LedgerLite<small>Finance, in focus</small></div></div><nav>{nav.map(n=><button key={n.name} className={view===n.name?'active':''} onClick={()=>setView(n.name)}><n.icon size={18}/>{n.name}</button>)}</nav><div className="side-note"><Sparkles size={16}/><b>Books are balanced</b><small>Last checked just now</small></div><div className="avatar">AM <span><b>Alex Morgan</b><small>Owner</small></span></div></aside>
+    <main><header><div><p>September 2026</p><h1>{view}</h1></div><div className="tools"><label><Search size={17}/><input aria-label="Search" placeholder="Search transactions"/></label><button className="primary" onClick={()=>setModal(true)}><Plus size={17}/>New invoice</button></div></header>
+      {view==='Overview' && <><section className="metrics"><Metric title="Cash balance" value="$18,940" delta="12.5%" up/><Metric title="Outstanding" value={money(outstanding)} delta="2 invoices"/><Metric title="Net income" value={money(pnl.netIncome)} delta="18.2%" up/></section><section className="grid"><InvoiceTable invoices={invoices}/><PnlCard pnl={pnl}/></section></>}
+      {view==='Invoices' && <section className="panel full"><div className="panel-head"><div><p className="eyebrow">Receivables</p><h2>All invoices</h2></div><button className="secondary" onClick={()=>setModal(true)}><Plus size={16}/>Create</button></div><InvoiceRows invoices={invoices}/></section>}
+      {view==='Journal' && <Journal/>}
+      {view==='P&L' && <section className="panel full report"><div className="panel-head"><div><p className="eyebrow">Jan 1—Sep 1, 2026</p><h2>Profit & loss</h2></div><span className="pill positive">Accrual basis</span></div><PnlLines pnl={pnl}/></section>}
+    </main>{modal&&<InvoiceModal close={()=>setModal(false)} add={i=>{setInvoices([i,...invoices]);setModal(false)}}/>}</div>
+}
+function Metric({title,value,delta,up=false}:{title:string,value:string,delta:string,up?:boolean}){return <article className="metric"><div><p>{title}</p><strong>{value}</strong></div><span className={up?'positive':''}>{up?<ArrowUpRight/>:<ArrowDownRight/>}{delta}</span></article>}
+function InvoiceTable({invoices}:{invoices:Invoice[]}){return <section className="panel invoices"><div className="panel-head"><div><p className="eyebrow">Latest activity</p><h2>Invoices</h2></div><FileText size={20}/></div><InvoiceRows invoices={invoices}/></section>}
+function InvoiceRows({invoices}:{invoices:Invoice[]}){return <div className="rows">{invoices.map(i=><div className="row" key={i.id}><span className="customer"><i>{i.customer[0]}</i><span><b>{i.customer}</b><small>{i.number} · Due {new Date(i.dueDate+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</small></span></span><b>{money(i.amount)}</b><span className={'pill '+i.status.toLowerCase()}>{i.status}</span></div>)}</div>}
+function PnlCard({pnl}:{pnl:Pnl}){return <section className="panel pnl"><div className="panel-head"><div><p className="eyebrow">Year to date</p><h2>Profit & loss</h2></div><span className="trend"><TrendingUp/>+18%</span></div><div className="bars"><div style={{height:'70%'}}/><div style={{height:'48%'}}/><div style={{height:'78%'}}/><div style={{height:'58%'}}/><div style={{height:'90%'}}/><div className="current" style={{height:'82%'}}/></div><PnlLines pnl={pnl}/></section>}
+function PnlLines({pnl}:{pnl:Pnl}){return <div className="pnl-lines"><span>Revenue <b>{money(pnl.totalRevenue)}</b></span><span>Expenses <b>−{money(pnl.totalExpenses)}</b></span><span className="net">Net income <b>{money(pnl.netIncome)}</b></span></div>}
+function Journal(){const entries=[['Aug 18','Office supplies','Office expense','Cash','$215'],['Aug 5','Design software subscription','Software expense','Cash','$480'],['Jul 31','Aster Labs payment received','Cash','Accounts receivable','$5,600']];return <section className="panel full"><div className="panel-head"><div><p className="eyebrow">General ledger</p><h2>Journal entries</h2></div><span className="pill positive">Balanced</span></div><div className="journal">{entries.map(e=><div><time>{e[0]}</time><span><b>{e[1]}</b><small>{e[2]} → {e[3]}</small></span><b>{e[4]}</b></div>)}</div></section>}
+function InvoiceModal({close,add}:{close:()=>void,add:(i:Invoice)=>void}){const [customer,setCustomer]=useState('');const [amount,setAmount]=useState('');return <div className="overlay" onMouseDown={e=>e.target===e.currentTarget&&close()}><form className="modal" onSubmit={e=>{e.preventDefault();add({id:Date.now(),customer,number:`INV-${1005+Math.floor(Math.random()*50)}`,issueDate:'2026-09-01',dueDate:'2026-10-01',amount:Number(amount),status:'Draft'})}}><p className="eyebrow">New receivable</p><h2>Create invoice</h2><label>Customer<input required value={customer} onChange={e=>setCustomer(e.target.value)} placeholder="Company name"/></label><label>Amount<input required min="1" type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00"/></label><div><button type="button" className="secondary" onClick={close}>Cancel</button><button className="primary">Save invoice</button></div></form></div>}
+
